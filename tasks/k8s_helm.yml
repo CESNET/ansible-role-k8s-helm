@@ -1,0 +1,106 @@
+# community.general.binary_file lookup added in community.general 11.2
+- name: "Collection community.general version check ({{ lookup('community.general.collection_version', 'community.general') }})"
+  ansible.builtin.assert:
+    that:
+      - lookup('community.general.collection_version', 'community.general') is version('11.2','>=')
+    fail_msg: "Required version is 11.2, this is {{lookup('community.general.collection_version', 'community.general') }}"
+    quiet: true
+  tags: always
+
+- name: "check defined variables"
+  assert:
+    that:
+      - k8s_context is defined
+      - k8s_namespace is defined
+      - app_name is defined
+      - app_version is defined
+      - app_helm_templates is defined
+      - app_replicas_num is defined
+      - app_image_name is defined
+      - app_requests_cpu is defined
+      - app_requests_mem is defined
+      - app_limits_cpu is defined
+      - app_limits_mem is defined
+      - app_public_dns_name is defined
+
+- name: "set helm chart metadata"
+  set_fact:
+    chart_name: "{{ app_name }}chart"
+    chart_version: "{{ app_chart_version }}"
+    chart_description: "Helm chart for {{ app_name }}"
+    chart_app_version: "{{ app_version }}"
+
+- name: "compute temporary chart directory name"
+  set_fact:
+    chart_path: "localcharts/{{ chart_name }}-{{ inventory_hostname }}"
+
+- name: "create directories for temporary chart"
+  loop:
+    - "{{ chart_path }}"
+    - "{{ chart_path }}/templates"
+  file:
+    state: directory
+    path: "{{ item }}"
+
+- name: "generate Chart.yaml file"
+  ansible.builtin.template:
+    src: "templates/Chart.yaml.j2"
+    dest: "{{ chart_path }}/Chart.yaml"
+
+- name: "generate values.yaml file"
+  ansible.builtin.template:
+    src: "templates/values.yaml.j2"
+    dest: "{{ chart_path }}/values.yaml"
+
+- name: "encode files as base64 data in K8s secret"
+  block:
+    - name: "add static binary files to secret_data"
+      loop: "{{ app_secret_binary_files }}"
+      set_fact:
+        secret_data: "{{ secret_data | default({}) | combine( { item: lookup('community.general.binary_file', item ) } ) }}"
+    - name: "add static text files to secret_data"
+      loop: "{{ app_secret_text_files }}"
+      set_fact:
+        secret_data: "{{ secret_data | default({}) | combine( { item: (lookup('ansible.builtin.file', item ) | b64encode )} ) }}"
+    - name: "add files generated from templates to secret_data"
+      loop: "{{ app_secret_templated_files }}"
+      set_fact:
+        secret_data: "{{ secret_data | default({}) | combine({item: (lookup('ansible.builtin.template', item+'.j2') | b64encode)}) }}"
+    - name: "find files in directory {{ app_secret_directory }}"
+      when: app_secret_directory | length > 0
+      find:
+        paths: "{{ app_secret_directory }}"
+        recurse: yes
+        file_type: file
+      register: secret_directory
+    - name: "add directory files"
+      when: secret_directory.files is defined
+      loop: "{{ secret_directory.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      set_fact:
+        secret_data: "{{ secret_data| combine({ ( item.path | relpath(app_secret_directory) | replace('/', '__')): lookup('community.general.binary_file',item.path) }) }}"
+    - name: "prepare mount items with paths"
+      loop: "{{ secret_data.keys()}}"
+      set_fact:
+        secret_volume_items: "{{ secret_volume_items | default([]) + [{ 'key': item, 'path': (item| replace('__', '/')) }] }}"
+
+- name: "generate YAML files in {{ chart_path }}/templates/ directory"
+  loop: "{{ app_helm_templates }}"
+  ansible.builtin.template:
+    src: "templates/{{ item }}.j2"
+    dest: "{{ chart_path }}/templates/{{ item }}"
+
+- name: "apply temporary chart"
+  kubernetes.core.helm:
+    chart_ref: "{{ chart_path }}"
+    release_name: "{{ app_name }}"
+    release_namespace: "{{ k8s_namespace }}"
+    context: "{{ k8s_context }}"
+    release_state: present
+
+- name: "delete secrets"
+  loop: "{{ app_clean_up_helm_templates }}"
+  file:
+    state: absent
+    path: "{{ chart_path }}/templates/{{ item }}"

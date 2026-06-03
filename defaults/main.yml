@@ -1,0 +1,40 @@
+app_version: 1.0.0
+app_replicas_num: 1
+app_requests_cpu: 500m
+app_requests_mem: 1Gi
+app_limits_cpu: 1
+app_limits_mem: 4Gi
+
+app_chart_version: 1.1.0
+
+app_helm_templates:
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+app_clean_up_helm_templates:
+  - secret.yaml
+app_secret_binary_files: []
+app_secret_text_files: []
+app_secret_directory: ""
+app_secret_templated_files:
+  - application.yml
+# shell environment to add to the application container
+app_container_env:
+  - name: SPRING_APPLICATION_NAME
+    value: "{{ app_name }}"
+
+# dir searched by Spring Boot apps for application.[yml|properties] files
+app_secret_mount_dir: /workspace/config
+
+# Spring Boot Actuator probes
+app_container_probes:
+  readinessProbe:
+    httpGet:
+      path: /actuator/health/readiness
+      port: 8081
+  livenessProbe:
+    httpGet:
+      path: /actuator/health/liveness
+      port: 8081
+

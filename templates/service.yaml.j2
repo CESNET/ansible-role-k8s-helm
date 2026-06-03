@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ app_name }}-service"
+  namespace: "{{ k8s_namespace }}"
+  annotations:
+    field.cattle.io/description: "maps TCP port 80 to ports 8080 on target {{ app_name }} containers"
+spec:
+  type: ClusterIP
+  ports:
+    - name: "{{ app_name }}-service-port"
+      port: 80
+      targetPort: 8080
+  selector:
+    app: "{{ app_name }}"

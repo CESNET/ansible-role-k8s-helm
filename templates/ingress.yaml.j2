@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "{{ app_name }}-ingress"
+  namespace: "{{ k8s_namespace }}"
+  annotations:
+    field.cattle.io/description: "HTTP reverse proxy for accessing {{ app_name }} as {{ app_public_dns_name }}"
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "{{ app_public_dns_name }}"
+      secretName: "{{ app_public_dns_name | regex_replace('\\.', '-') }}-tls"
+  rules:
+    - host: "{{ app_public_dns_name }}"
+      http:
+        paths:
+          - backend:
+              service:
+                name: "{{ app_name }}-service"
+                port:
+                  number: 80
+            path: /
+            pathType: ImplementationSpecific

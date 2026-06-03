@@ -1,0 +1,4 @@
+---
+- import_tasks: k8s_helm.yml
+  tags:
+    - k8s_helm

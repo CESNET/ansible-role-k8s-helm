@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: "{{ app_name }}"
+  name: "{{ app_name }}-deployment"
+  namespace: "{{ k8s_namespace }}"
+  annotations:
+    field.cattle.io/description: "the {{ app_name }} application"
+spec:
+  replicas: {{ app_replicas_num }}
+  selector:
+    matchLabels:
+      app: "{{ app_name }}"
+  template:
+    metadata:
+      annotations:
+        field.cattle.io/description: "a {{ app_name }} pod"
+        config_checksum: "{{ secret_data  | ansible.builtin.checksum }}"
+      labels:
+        app: "{{ app_name }}"
+    spec:
+      # Pod security context required by Rancher Edition
+      securityContext:
+        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # list of containers
+      containers:
+        # application container
+        - name: "{{ app_name }}-container"
+          image: "{{ app_image_name }}:{{ app_version}}"
+          imagePullPolicy: Always
+          # Container security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+          # environment variables
+          env:
+            # set timezone
+            - name: TZ
+              value: "Europe/Prague"
+            {%- if app_container_env is defined +%}
+            {{ app_container_env | to_nice_yaml(indent=2) | indent(12) }}
+            {%- endif %}
+          # limits on CPU and memory
+          resources:
+            requests:
+              cpu: "{{ app_requests_cpu }}"
+              memory: "{{ app_requests_mem }}"
+            limits:
+              cpu: "{{ app_limits_cpu }}"
+              memory: "{{ app_limits_mem }}"
+          # probes
+          {%- if app_container_probes | length > 0  +%}
+          {{ app_container_probes | to_nice_yaml(indent=2) | indent(10) }}
+          {%- endif %}
+          # mounted volumes
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+            # mount Secret into a directory searched by Spring Boot externalized configuration
+            - name: "{{ app_name }}-secret-volume"
+              readOnly: true
+              mountPath: "{{ app_secret_mount_dir }}"
+      # volumes (defined for all containers in a pod)
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+        - name: "{{ app_name }}-secret-volume"
+          secret:
+            secretName: "{{ app_name }}-secret"
+            items:
+            {{ secret_volume_items | to_nice_yaml(indent=2) | indent(12) }}
