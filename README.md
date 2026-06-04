@@ -38,11 +38,16 @@ The default settings create the following objects:
  * app_public_dns_name - DNS name for the application, must be mapped to the Ingress IP
  * app_chart_version - version used for Chart.yaml file
  * app_helm_templates - list of Helm Chart templates to be created using Ansible templates, i.e. the Ansible template (Jinja2 syntax) deployment.yaml.j2 would generate the Helm template (Go syntax) deployment.yaml   
- * app_clean_up_helm_templates - list of Helm Chart templates to be deleted form th temporary local directory after role execution to protect sensitive data
+ * app_clean_up_helm_templates - list of Helm Chart templates to be deleted from the temporary local directory after role execution to protect sensitive data
  * app_secret_binary_files - list of files that are read as binary data, base64-encoded and added to the secret template in secret.yaml
- * app_secret_text_files - list of files similar to app_secret_binary_files, but vault-encrypted files need to be read this way
+ * app_secret_text_files - list of files similar to app_secret_binary_files
  * app_secret_templated_files - list of Ansible template names that are used to generate files added to the secret
  * app_secret_directory - name of directory that is recursively added to the secret data (paths to subdirectories are handled in the deployment.yaml by secret items mapping)
  * app_container_env - shell environment variables to be set for the container
  * app_secret_mount_dir - directory path where the secret data will be mounted as files, default is /workspace/config because this path is searched by Spring Boot apps for application properties files
  * app_container_probes - YAML to be added to spec.template.spec.containers[0] for setting probes, default is for Spring Boot Actuator
+
+The difference between `app_secret_binary_files` and `app_secret_text_files` is that `app_secret_binary_files` are read using
+the [ansible.builtin.unvault](https://github.com/ansible/ansible/blob/devel/lib/ansible/plugins/lookup/unvault.py) lookup
+and `app_secret_text_files` are read using the [ansible.builtin.file](https://github.com/ansible/ansible/blob/devel/lib/ansible/plugins/lookup/file.py) lookup
+with disabled stripping of white spaces. They behave identically as of Ansible 4, but may differ in the future.

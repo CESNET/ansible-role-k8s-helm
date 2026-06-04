@@ -57,11 +57,25 @@
     - name: "add static binary files to secret_data"
       loop: "{{ app_secret_binary_files }}"
       set_fact:
-        secret_data: "{{ secret_data | default({}) | combine( { item: lookup('community.general.binary_file', item ) } ) }}"
+        # the problem is that there is not correct way to read vaulted binary data
+        # see open issue https://github.com/ansible-collections/community.general/issues/10799
+        # but closed PR https://github.com/ansible-collections/community.general/pull/10806
+        #
+        # ansible.builtin.file decrypts vaults and reads text, by default strips right spaces and \n characters
+        # source https://github.com/ansible/ansible/blob/devel/lib/ansible/plugins/lookup/file.py
+        #
+        # ansible.builtin.unvault decrypts vaults and reads text
+        # source https://github.com/ansible/ansible/blob/devel/lib/ansible/plugins/lookup/unvault.py
+        #
+        # community.general.binary_file does not decrypt vaults, reads binary data as bytes
+        # source https://github.com/ansible-collections/community.general/blob/main/plugins/lookup/binary_file.py
+        #
+        # unvault seems to be the best choice to read binary files until binary_file is fixed
+        secret_data: "{{ secret_data | default({}) | combine( { item: (lookup('ansible.builtin.unvault', item ) | b64encode) } ) }}"
     - name: "add static text files to secret_data"
       loop: "{{ app_secret_text_files }}"
       set_fact:
-        secret_data: "{{ secret_data | default({}) | combine( { item: (lookup('ansible.builtin.file', item ) | b64encode )} ) }}"
+        secret_data: "{{ secret_data | default({}) | combine( { item: (lookup('ansible.builtin.file', item, lstrip=False, rstrip=False ) | b64encode )} ) }}"
     - name: "add files generated from templates to secret_data"
       loop: "{{ app_secret_templated_files }}"
       set_fact:
@@ -79,7 +93,7 @@
       loop_control:
         label: "{{ item.path | basename }}"
       set_fact:
-        secret_data: "{{ secret_data| combine({ ( item.path | relpath(app_secret_directory) | replace('/', '__')): lookup('community.general.binary_file',item.path) }) }}"
+        secret_data: "{{ secret_data| combine({ ( item.path | relpath(app_secret_directory) | replace('/', '__')): (lookup('ansible.builtin.unvault',item.path) | b64encode) }) }}"
     - name: "prepare mount items with paths"
       loop: "{{ secret_data.keys()}}"
       set_fact:
