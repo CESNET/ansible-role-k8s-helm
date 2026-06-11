@@ -50,4 +50,4 @@ The default settings create the following objects:
 The difference between `app_secret_binary_files` and `app_secret_text_files` is that `app_secret_binary_files` are read using
 the [ansible.builtin.unvault](https://github.com/ansible/ansible/blob/devel/lib/ansible/plugins/lookup/unvault.py) lookup
 and `app_secret_text_files` are read using the [ansible.builtin.file](https://github.com/ansible/ansible/blob/devel/lib/ansible/plugins/lookup/file.py) lookup
-with disabled stripping of white spaces. They behave identically as of Ansible 4, but may differ in the future.
+with disabled stripping of white spaces. They behave identically as of Ansible 14, but may differ in the future.
