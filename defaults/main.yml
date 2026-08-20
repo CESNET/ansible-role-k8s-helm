@@ -5,13 +5,14 @@ app_requests_mem: 1Gi
 app_limits_cpu: 1
 app_limits_mem: 4Gi
 
-app_chart_version: 1.1.0
+app_chart_version: 2.0.0
 
 app_helm_templates:
   - secret.yaml
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
+  - gateway.yaml
+  - httproute.yaml
 app_clean_up_helm_templates:
   - secret.yaml
 app_secret_binary_files: []
